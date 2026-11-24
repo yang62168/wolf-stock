@@ -36,6 +36,56 @@ export function vParseIntraday(payload,symbol) {
   }).sort((a,b)=>a.date.localeCompare(b.date));
 }
 export function vAt(rows,hhmm){return rows.findLast(r=>r.hhmm<=hhmm)||null;}
+export function vParseMinuteVolume(payload,symbol){
+  const rows=payload?.data?.[symbol]?.m1;
+  if(payload?.code!==undefined&&payload.code!==0||!Array.isArray(rows))throw new Error('1分钟K线源未返回有效数据');
+  const unique=new Map();
+  for(const r of rows){
+    const ts=String(r?.[0]||'');
+    if(!/^\d{12}$/.test(ts))throw new Error('1分钟K线时间格式异常');
+    const date=ts.slice(0,4)+'-'+ts.slice(4,6)+'-'+ts.slice(6,8),hhmm=ts.slice(8),volume=vNumber(r[5]);
+    const parsed=new Date(date+'T00:00:00Z');
+    if(!Number.isFinite(+parsed)||parsed.toISOString().slice(0,10)!==date||!((hhmm>='0930'&&hhmm<='1130')||(hhmm>='1300'&&hhmm<='1500'))||Number(hhmm.slice(2))>59)throw new Error('1分钟K线包含非法交易时间');
+    if(volume===null||volume<0)throw new Error('1分钟成交量缺失或异常');
+    // r[5] is the interval volume in lots, not a cumulative total. Last revision wins.
+    unique.set(ts,{date,hhmm,volume});
+  }
+  return [...unique.values()].sort((a,b)=>(a.date+a.hhmm).localeCompare(b.date+b.hhmm));
+}
+function vExpectedMinutes(){
+  const times=[];for(const [start,end]of [[571,690],[781,900]])for(let n=start;n<=end;n++)times.push(String(Math.floor(n/60)).padStart(2,'0')+String(n%60).padStart(2,'0'));return times;
+}
+export function vCompareMinuteVolume(quotes,histories,{previousDate=null,now=new Date()}={}){
+  const scope=['sh000001','sz399106'],base={scope:'hs',source:'腾讯1分钟K线 · m1（单分钟成交量累加）',volumeUnit:'手',complete:false,date:null,hhmm:null,previousDate:null,current:null,previous:null,previousTotal:null,ratio:null,difference:null,forecast:null,state:'待基准',markets:[],warnings:[]};
+  const qs=scope.map(s=>quotes.find(q=>q.symbol===s));
+  if(qs.some(q=>!q||!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(q.sourceTime||'')||!Number.isFinite(q.volume)||q.volume<0))return {...base,warnings:['沪深实时报价缺少有效累计成交量或时间']};
+  const dates=qs.map(q=>q.sourceTime.slice(0,10)),times=qs.map(q=>q.sourceTime.slice(11,16).replace(':',''));
+  if(new Set(dates).size!==1||new Set(times).size!==1)return {...base,warnings:['沪深报价日期或分钟不一致，等待同一分钟数据']};
+  const clock=vClock(now),date=dates[0],hhmm=times[0];
+  if(date>clock.date)return {...base,warnings:['报价日期晚于当前北京时间']};
+  const phase=date!==clock.date?'historical':clock.hhmm<'0930'?'preopen':clock.hhmm>='1500'&&hhmm>='1500'?'closed':clock.hhmm>='1130'&&clock.hhmm<'1300'?'lunch':'trading';
+  const delayed=phase==='trading'&&qs.some(q=>(now-new Date(q.sourceTime.replace(' ','T')+'+08:00'))/1000>180);
+  Object.assign(base,{date,hhmm,phase,delayed,current:hhmm<'0930'||phase==='preopen'?null:qs.reduce((s,q)=>s+q.volume,0)});
+  if(base.current===null)return {...base,warnings:['未开盘，不将竞价或上一交易日的量当作今日连续交易成交量']};
+  if(hhmm>='1500')base.forecast=base.current;
+  const previousDays=scope.map(s=>[...new Set((histories[s]||[]).filter(r=>r.date<date).map(r=>r.date))].sort().at(-1));
+  if(previousDays.some(d=>!d)||new Set(previousDays).size!==1||previousDate&&previousDays[0]!==previousDate)return {...base,warnings:['未取得与上一交易日一致的沪深1分钟基准']};
+  base.previousDate=previousDays[0];
+  const expected=vExpectedMinutes(),cutoff=hhmm>='1500'?'1500':hhmm>='1130'&&hhmm<'1300'?'1130':hhmm;
+  const perMarket=scope.map((s,i)=>{
+    const rows=(histories[s]||[]).filter(r=>r.date===base.previousDate),map=new Map(rows.map(r=>[r.hhmm,r]));
+    const missing=expected.filter(t=>!map.has(t));
+    // Missing minutes are unknown, not zero; never compare the first N returned rows.
+    const full=missing.length===0,total=full?rows.reduce((n,r)=>n+r.volume,0):null;
+    const prior=full?rows.filter(r=>r.hhmm<=cutoff).reduce((n,r)=>n+r.volume,0):null;
+    return {symbol:s,name:i?'深市':'沪市',current:qs[i].volume,previous:prior,previousTotal:total,complete:full,missingMinutes:missing.length};
+  });
+  base.markets=perMarket;
+  if(perMarket.some(m=>!m.complete))return {...base,warnings:perMarket.filter(m=>!m.complete).map(m=>m.name+'上一交易日1分钟K线缺少'+m.missingMinutes+'个交易分钟，不生成不完整对比')};
+  const previous=perMarket.reduce((n,m)=>n+m.previous,0),total=perMarket.reduce((n,m)=>n+m.previousTotal,0),ratio=previous>0?base.current/previous:null;
+  const forecast=hhmm>='1500'?base.current:ratio!==null&&total>0&&vTradingMinute(hhmm)>=8?base.current*total/previous:null;
+  return {...base,complete:true,previous,previousTotal:total,ratio,difference:base.current-previous,forecast,state:ratio===null?'基准为零':ratio>=1.03?'放量':ratio<=.97?'缩量':'平量'};
+}
 export function vAnalyze(quote,daily,days,{now=new Date(),estimate=false}={}) {
   const clock=vClock(now),date=quote.sourceTime?.slice(0,10),hhmm=quote.sourceTime?.slice(11,16).replace(':','');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!/^\d{4}$/.test(hhmm||'')||date>clock.date||quote.amount===null||!(quote.amount>=0))throw new Error('报价缺少有效金额或交易时间');
