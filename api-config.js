@@ -1,1 +1,1 @@
-window.WOLF_API_BASE_URL = "https://wolf-trading-notebook.companionablechipmunk.chatgpt.site";
+window.WOLF_API_BASE_URL = 'https://wolf-stock-api.wolfstock.workers.dev';
