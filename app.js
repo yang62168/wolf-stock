@@ -2,7 +2,7 @@
   'use strict';
   const sources={
     experience:{key:'waves',title:'🐺 狼大经验总结',description:'把已经验证过的浪型判断与点位推演方法沉淀成可复用条目 —— 每一条都保留他当时的原话口径、数字与作废条件。',meta:'共 3 条 · 更新 2026-11-04'},
-    trade:{key:'notes',title:'📘 狼大交易笔记',description:'整篇导入的交易方法论 —— 复盘思路、做 T、止盈止损、调仓、趋势波段、龙头甄选、焚诀、科创 ETF、金玉良言与年终总结。',meta:'共 17 章 · 语料补充 2026-11-17'},
+    trade:{key:'notes',title:'📘 狼大交易笔记',description:'整篇导入的交易方法论 —— 复盘思路、做 T、止盈止损、调仓、趋势波段、龙头甄选、焚诀、科创 ETF、金玉良言与年终总结。',meta:'共 18 章 · 语料补充 2026-11-24'},
     knight:{key:'knight',title:'🗡️ 骑士 55 战法',description:'兰斯洛t（兰骑士）· 55 线趋势战法完全手册',meta:'共 14 节 · 语料补充 2026-11-17'}
   };
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
