@@ -13,7 +13,7 @@
   async function render(){
     const own=++renderId;window.MarketApp?.unmount();workspace?.unmount();
     const tab=new URLSearchParams(location.search).get('tab')||'overview',isCollection=Object.hasOwn(sources,tab),isResearch=tab==='search'||tab==='fish';
-    let page;if(!isCollection&&!isResearch&&tab!=='market'){workspace=await import('./workspace.mjs?v=overview1');if(own!==renderId)return;page=workspace.pages[tab];}
+    let page;if(!isCollection&&!isResearch&&tab!=='market'){workspace=await import('./workspace.mjs?v=daily-limits2');if(own!==renderId)return;page=workspace.pages[tab];}
     const s=tab==='market'||tab==='technical'?{key:'market',title:tab==='technical'?'◩ 技术分析图表':'📈 行情中心',description:'查看 A 股、ETF 与主要指数的最新报价，对照均线观察趋势与节奏。',meta:'报价自动刷新 · 非交易时段展示最近一次行情'}:tab==='search'?{title:'🔎 全文检索与出处',description:'按关键词和作者查阅正文、原材料摘录与整理说明。',meta:'原文、解读与工具参数分别展示'}:tab==='fish'?{title:'🐟 鱼大专栏',description:'鱼大独立归属；本人原话确认后按来源收录。',meta:'已建立专栏 · 本人确认条目 '+window.RESEARCH_DATA.fish.confirmed.length}:page?{title:page[0],description:page[1],meta:'分析工具 · 数据时间以来源为准'}:sources[tab]||sources.experience;
     document.querySelectorAll('[data-tab]').forEach(a=>{const selected=a.dataset.tab===tab||(a.dataset.tab==='experience'&&!isCollection&&!isResearch&&!page&&tab!=='market');a.classList.toggle('active',selected);if(selected)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
     document.title=s.title+' · 股票分析系统';document.getElementById('banner').innerHTML=`<span class="watermark" aria-hidden="true">${tab==='fish'?'🐟':'🐺'}</span><h1>${escape(s.title)}</h1><p>${escape(s.description)}</p><small>${escape(s.meta)}</small>`;
