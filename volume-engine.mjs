@@ -131,10 +131,10 @@ export class VolumePace {
   reset(){this.previous=null;this.lastIncrement=null;this.increment=null;this.state=null;}
   update(snapshot){
     if(!snapshot?.complete||snapshot.phase!=='trading'||snapshot.delayed||snapshot.amount===null){this.reset();return;}
-    const point={date:snapshot.date,hhmm:snapshot.hhmm,amount:snapshot.amount};
+    const point={date:snapshot.date,hhmm:snapshot.hhmm,amount:snapshot.amount,source:snapshot.source};
     if(!this.previous){this.previous=point;return;}
     const gap=vMinute(point.hhmm)-vMinute(this.previous.hhmm);
-    if(point.date!==this.previous.date||point.amount<this.previous.amount||gap>1||gap<0){this.reset();this.previous=point;return;}
+    if(point.date!==this.previous.date||point.source!==this.previous.source||point.amount<this.previous.amount||gap>1||gap<0){this.reset();this.previous=point;return;}
     if(gap===0)return;
     const inc=point.amount-this.previous.amount;
     if(this.increment!==null){const state=inc>this.increment?'加速':inc<this.increment?'减速':this.state;if(state&&this.state&&state!==this.state)this.history.unshift({date:point.date,time:point.hhmm,from:this.state,to:state,increment:inc});this.history=this.history.slice(0,30);this.state=state;}
